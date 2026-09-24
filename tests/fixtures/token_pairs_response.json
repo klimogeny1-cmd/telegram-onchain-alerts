@@ -1,0 +1,19 @@
+[
+  {
+    "chainId": "base",
+    "dexId": "aerodrome",
+    "url": "https://dexscreener.com/base/pairWATCH",
+    "pairAddress": "pairWATCH",
+    "baseToken": {"address": "tokenWATCH", "name": "Own Project Token", "symbol": "OWN"},
+    "quoteToken": {"address": "0x4200000000000000000000000000000000000006", "name": "Wrapped Ether", "symbol": "WETH"},
+    "priceNative": "0.0003",
+    "priceUsd": "0.75",
+    "txns": {"h1": {"buys": 12, "sells": 9}, "h24": {"buys": 300, "sells": 260}},
+    "volume": {"h24": 20000, "h6": 5000, "h1": 900, "m5": 80},
+    "priceChange": {"h1": 0.4, "h24": 1.8},
+    "liquidity": {"usd": 100000, "base": 90000, "quote": 40},
+    "fdv": 750000,
+    "marketCap": 750000,
+    "pairCreatedAt": 1734740800000
+  }
+]

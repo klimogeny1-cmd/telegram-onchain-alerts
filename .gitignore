@@ -1,0 +1,19 @@
+# Secrets and local state - never commit these
+.env
+state/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

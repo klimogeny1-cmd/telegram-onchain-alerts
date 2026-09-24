@@ -1,0 +1,47 @@
+# On-chain alerts bot under systemd (Linux server, Python 3.9+, no external dependencies).
+#
+# Example install:
+#   sudo useradd --system --home-dir /opt/telegram-onchain-alerts --shell /usr/sbin/nologin alerts
+#   sudo mkdir -p /opt/telegram-onchain-alerts
+#   sudo cp -r . /opt/telegram-onchain-alerts        # this repo's contents
+#   sudo cp /opt/telegram-onchain-alerts/.env.example /opt/telegram-onchain-alerts/.env
+#   sudo nano /opt/telegram-onchain-alerts/.env       # fill in BOT_TOKEN and CHANNEL_ID
+#   sudo chown -R alerts:alerts /opt/telegram-onchain-alerts
+#   sudo chmod 600 /opt/telegram-onchain-alerts/.env
+#   sudo cp /opt/telegram-onchain-alerts/deploy/telegram-onchain-alerts.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now telegram-onchain-alerts
+#   journalctl -u telegram-onchain-alerts -f          # follow the log
+#
+# main.py --check runs before every (re)start; an empty or malformed BOT_TOKEN/CHANNEL_ID
+# exits 2, and RestartPreventExitStatus below stops systemd from retrying that in a loop
+# (it would just fail again). Fix the .env and run `sudo systemctl restart
+# telegram-onchain-alerts` once it's correct.
+
+[Unit]
+Description=Telegram on-chain alerts bot (DexScreener tape, no trading signals)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alerts
+Group=alerts
+WorkingDirectory=/opt/telegram-onchain-alerts
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/python3 /opt/telegram-onchain-alerts/main.py --check
+ExecStart=/usr/bin/python3 /opt/telegram-onchain-alerts/main.py
+Restart=always
+RestartSec=5
+# exit code 2 = settings problem (missing/invalid BOT_TOKEN or CHANNEL_ID): do not loop
+RestartPreventExitStatus=2
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/telegram-onchain-alerts
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+# No third-party dependencies - standard library only (Python 3.9+).
+#
+# `pip install -r requirements.txt` works and does nothing; this file exists so the
+# "no dependencies" claim in README.md is something you can verify, not just take on
+# faith, and so tools that expect a requirements.txt to exist find one.
+#
+# If you extend this template and need a real dependency, add it below as
+# `package==x.y.z` (pinned) and mention why in README.md "Dependencies".
