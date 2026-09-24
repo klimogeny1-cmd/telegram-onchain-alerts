@@ -1,0 +1,54 @@
+name: Tests
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Python 3.9's last release (3.9.25) has no prebuilt actions/setup-python
+        # binary for the Ubuntu image "ubuntu-latest" is migrating to, so that leg
+        # is pinned to ubuntu-24.04 instead of floating with the others. 3.11 and
+        # 3.13 both have current builds and can safely track ubuntu-latest.
+        include:
+          - python-version: "3.9"
+            os: ubuntu-24.04
+          - python-version: "3.11"
+            os: ubuntu-latest
+          - python-version: "3.13"
+            os: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run test suite
+        run: python -m unittest discover -v
+
+      - name: Create throwaway .env for config check
+        # Obviously-fake values that satisfy Config's format checks (see
+        # alerts_bot/config.py) so `--check` can validate the config-loading
+        # path in CI. This file only ever exists on the CI runner - .env is
+        # git-ignored (see .gitignore) and no real token or key is ever used.
+        run: |
+          cat > .env <<'EOF'
+          BOT_TOKEN=123456789:FAKE_CI_TOKEN_DO_NOT_USE_0000000000
+          CHANNEL_ID=@example_channel
+          EOF
+
+      - name: Validate config (--check, no network calls)
+        run: python main.py --check

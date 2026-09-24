@@ -1,5 +1,9 @@
 # telegram-onchain-alerts
 
+[![Tests](https://github.com/klimogeny1-cmd/telegram-onchain-alerts/actions/workflows/tests.yml/badge.svg)](https://github.com/klimogeny1-cmd/telegram-onchain-alerts/actions/workflows/tests.yml)
+
+![telegram-onchain-alerts: open-source Telegram bot that posts new pairs and volume anomalies from public DexScreener data, shown next to an example "Volume anomalies" channel post](docs/preview.png)
+
 A small, self-hosted Telegram bot that posts an on-chain "tape" to a channel: new
 trading pairs and unusual volume, pulled from the public [DexScreener](https://dexscreener.com)
 API. Built as an open template for crypto projects and developers - read it, run it,
@@ -244,6 +248,9 @@ docker run -d --name onchain-alerts \
 
 Standard library only (`urllib`, `sqlite3`, `json`, `argparse`, ...). There is nothing to
 install: clone it, configure it, run it.
+
+The one exception is [Pillow](https://python-pillow.org/), needed only to *regenerate*
+`docs/preview.png` via `docs/make_preview.py` - never to run the bot.
 
 ## License
 
