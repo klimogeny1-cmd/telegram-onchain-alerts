@@ -1,0 +1,38 @@
+{
+ "jsonrpc": "2.0",
+ "id": 1,
+ "result": {
+  "context": {
+   "slot": 370000101
+  },
+  "value": [
+   {
+    "data": {
+     "parsed": {
+      "info": {
+       "isNative": false,
+       "mint": "DemoTape111111111111111111111111111111111111",
+       "owner": "WaLetD11111111111111111111111111111111111111",
+       "state": "initialized",
+       "tokenAmount": {
+        "amount": "1000000",
+        "decimals": 6,
+        "uiAmount": 1.0,
+        "uiAmountString": "1"
+       }
+      },
+      "type": "account"
+     },
+     "program": "spl-token",
+     "space": 165
+    },
+    "executable": false,
+    "lamports": 2039280,
+    "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "rentEpoch": 18446744073709551615,
+    "space": 165
+   },
+   null
+  ]
+ }
+}

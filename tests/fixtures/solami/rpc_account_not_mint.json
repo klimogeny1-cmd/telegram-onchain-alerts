@@ -1,0 +1,27 @@
+{
+ "jsonrpc": "2.0",
+ "id": 1,
+ "result": {
+  "context": {
+   "slot": 1
+  },
+  "value": {
+   "data": {
+    "parsed": {
+     "info": {
+      "mint": "DemoTape111111111111111111111111111111111111",
+      "owner": "WaLetA11111111111111111111111111111111111111",
+      "tokenAmount": {
+       "amount": "5",
+       "decimals": 6
+      }
+     },
+     "type": "account"
+    },
+    "program": "spl-token",
+    "space": 165
+   },
+   "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+  }
+ }
+}

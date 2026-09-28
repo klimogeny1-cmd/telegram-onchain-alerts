@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Run test suite
+      - name: Run test suite (offline - no network, no keys)
         run: python -m unittest discover -v
 
       - name: Create throwaway .env for config check
@@ -45,10 +45,14 @@ jobs:
         # path in CI. This file only ever exists on the CI runner - .env is
         # git-ignored (see .gitignore) and no real token or key is ever used.
         run: |
-          cat > .env <<'EOF'
+          cat > .env <<'ENV'
           BOT_TOKEN=123456789:FAKE_CI_TOKEN_DO_NOT_USE_0000000000
           CHANNEL_ID=@example_channel
-          EOF
+          SOLAMI_API_KEY=sk_FAKE_CI_KEY_DO_NOT_USE
+          ENV
 
       - name: Validate config (--check, no network calls)
         run: python main.py --check
+
+      - name: Offline replay demo (synthetic frames, no network)
+        run: python main.py --env examples/offline-demo.conf --replay-file tests/fixtures/solami/blur_frames.jsonl --dry-run

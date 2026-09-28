@@ -25,23 +25,31 @@ class TelegramError(Exception):
 
 
 class TokenFilter(logging.Filter):
-    """Strips the bot token out of every log record produced anywhere in this process,
-    so a stray exception or debug line can never leak it into a log file or console."""
+    """Strips secrets (the bot token and the Solami API key) out of every log record
+    produced anywhere in this process - message and traceback - so a stray exception or
+    debug line can never leak them into a log file, a console, or a screen recording."""
 
     def __init__(self, *secrets):
         super().__init__()
         self.secrets = [s for s in secrets if s]
 
+    def _scrub(self, text):
+        for secret in self.secrets:
+            text = text.replace(secret, "<TOKEN>")
+        return text
+
     def filter(self, record):
         if not self.secrets:
             return True
         msg = record.getMessage()
-        cleaned = msg
-        for secret in self.secrets:
-            cleaned = cleaned.replace(secret, "<TOKEN>")
+        cleaned = self._scrub(msg)
         if cleaned != msg:
             record.msg = cleaned
             record.args = ()
+        if record.exc_info and not record.exc_text:
+            # Render the traceback now, scrubbed, so the formatter uses this copy: an
+            # exception message can quote a URL, and URLs can carry the Solami key.
+            record.exc_text = self._scrub(logging.Formatter().formatException(record.exc_info))
         return True
 
 

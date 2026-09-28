@@ -1,0 +1,74 @@
+{
+ "jsonrpc": "2.0",
+ "id": 1,
+ "result": {
+  "context": {
+   "apiVersion": "2.3.0",
+   "slot": 370000100
+  },
+  "value": {
+   "data": {
+    "parsed": {
+     "info": {
+      "decimals": 9,
+      "extensions": [
+       {
+        "extension": "transferFeeConfig",
+        "state": {
+         "newerTransferFee": {
+          "epoch": 850,
+          "maximumFee": 5000000000,
+          "transferFeeBasisPoints": 250
+         },
+         "olderTransferFee": {
+          "epoch": 840,
+          "maximumFee": 5000000000,
+          "transferFeeBasisPoints": 100
+         },
+         "transferFeeConfigAuthority": "MintAuth111111111111111111111111111111111111",
+         "withdrawWithheldAuthority": "MintAuth111111111111111111111111111111111111",
+         "withheldAmount": 0
+        }
+       },
+       {
+        "extension": "permanentDelegate",
+        "state": {
+         "delegate": "DeLegate111111111111111111111111111111111111"
+        }
+       },
+       {
+        "extension": "transferHook",
+        "state": {
+         "authority": "MintAuth111111111111111111111111111111111111",
+         "programId": "HookProgram111111111111111111111111111111111"
+        }
+       },
+       {
+        "extension": "metadataPointer",
+        "state": {
+         "authority": "MintAuth111111111111111111111111111111111111",
+         "metadataAddress": "DemoTape111111111111111111111111111111111111"
+        }
+       },
+       {
+        "extension": "nonTransferable"
+       }
+      ],
+      "freezeAuthority": "FreezeAuth1111111111111111111111111111111111",
+      "isInitialized": true,
+      "mintAuthority": "MintAuth111111111111111111111111111111111111",
+      "supply": "5000000000000000000"
+     },
+     "type": "mint"
+    },
+    "program": "spl-token-2022",
+    "space": 434
+   },
+   "executable": false,
+   "lamports": 3918480,
+   "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCC7rPKxkB2",
+   "rentEpoch": 18446744073709551615,
+   "space": 434
+  }
+ }
+}

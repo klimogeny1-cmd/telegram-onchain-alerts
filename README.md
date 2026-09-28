@@ -1,253 +1,426 @@
-# telegram-onchain-alerts
+# Solana Tape (telegram-onchain-alerts)
 
 [![Tests](https://github.com/klimogeny1-cmd/telegram-onchain-alerts/actions/workflows/tests.yml/badge.svg)](https://github.com/klimogeny1-cmd/telegram-onchain-alerts/actions/workflows/tests.yml)
 
-![telegram-onchain-alerts: open-source Telegram bot that posts new pairs and volume anomalies from public DexScreener data, shown next to an example "Volume anomalies" channel post](docs/preview.png)
+A self-hosted Telegram bot that posts a **live, facts-only on-chain tape** for Solana
+mainnet to a channel: large trades, liquidity moving in and out, new pools, launchpad
+graduations, volume breakouts, big transfers and burns, top-holder balance changes and
+mint/freeze-authority changes - each line with a link you can check on Solscan.
 
-A small, self-hosted Telegram bot that posts an on-chain "tape" to a channel: new
-trading pairs and unusual volume, pulled from the public [DexScreener](https://dexscreener.com)
-API. Built as an open template for crypto projects and developers - read it, run it,
-fork it.
+Status: built and tested offline against Solami's documented event shapes (223 tests); the
+first run with a live key is pending — see "Assumptions to verify with a real key".
+
+Data comes from **[Solami](https://solami.dev)**: the Blur decoded-event stream is the
+real-time backbone, and Solami RPC answers "what is true right now" about a token. No
+third-party Python packages - clone, configure, run. Open source (MIT) by Gram Works.
 
 ## What this is
 
-- A **market tape**: new pairs and volume anomalies, on a schedule, with plain factual
-  numbers (liquidity, volume, pair age).
-- **Rule-based flags**, not a rating: a handful of simple, documented rules over public
-  metrics (e.g. "liquidity under $25,000"), clearly labeled as rules - never a score.
-- **Public data only**: everything comes from DexScreener's public API. No wallet, no
-  private RPC, no on-chain write access of any kind.
+- **A tape, not a terminal.** Facts as they confirm on mainnet, batched into readable
+  posts (one post per `FLUSH_SEC`, default 60 s), plus an hourly summary per token.
+- **Two modes.** `watchlist` - your project's own token(s), everything that happens to
+  them. `firehose` - the whole Solana market with high thresholds.
+- **Rule-based flags, never a score.** A handful of documented rules over public facts
+  ("mint authority active", "removed 30% of the pool's SOL side"), each shown as `⚠️`.
+- **Built to run unattended.** Reconnects with backoff, understands Solami's close codes,
+  de-duplicates across restarts, retries failed posts, shuts down cleanly, writes a
+  heartbeat file.
 
 ## What this is NOT
 
-- **Not trading signals.** No buy/sell calls, no "entry/exit", no price targets.
-- **Not financial advice.** Every post ends with a disclaimer, on purpose, every time.
-- **Not custody.** The bot never touches a wallet, a private key, or a seed phrase - it
-  has no code path that could, because it never asks for one.
-- **Not a full-chain firehose.** DexScreener's public API does not expose "every pair
-  created on chain X" as a single feed; see [How pair discovery works](#how-pair-discovery-works)
-  for what this bot actually does instead, and why.
+- **Not trading signals.** No buy/sell calls, no targets, no "entries". A trade line says
+  what a wallet *did* ("bought $7.5K of DEMO"), never what a reader should do.
+- **Not financial advice.** Every post ends with an "On-chain facts, not financial
+  advice" line - on every post, not in a pinned message someone may never read.
+- **Not custody.** The bot never touches a wallet, a private key or a seed phrase, and
+  never signs or sends a transaction. There is no code path that could.
+- **Not a verdict on any token.** An empty flag list is not a claim that a token is safe.
 
-## Example post
+## Example posts
 
-New pairs (illustrative):
-
-```
-New pairs, last 60 min · 14:32 UTC
-
-• BONK2/SOL (solana) — liq $38.2K, vol 1h $9.4K, age 12m ⚠️ Very new pair (12 min old)
-  https://dexscreener.com/solana/...
-• FROG/WETH (base) — liq $61.0K, vol 1h $2.1K, age 47m
-  https://dexscreener.com/base/...
-
-Tape, not advice. Source: DexScreener.
-```
-
-Volume anomalies (real output from a `--dry-run` test run against the live API):
+Illustrative. The tape post is the real formatter's output for the **synthetic** fixture
+frames used by the offline demo (made-up addresses, not a mainnet recording - see
+[Try it offline](#try-it-offline-no-key-no-telegram)); the graduation's second line comes
+from Solami RPC and appears when a key is set. The summary numbers are made up to show
+the layout. In Telegram every address, `tx` and token name is a Solscan link.
 
 ```
-Volume anomalies, last 1h · 16:51 UTC
+Solana Tape · 14:32 UTC · watching DEMO
 
-• WETH/SOL (solana) — vol 1h $555 (2.9x vs 24h avg), liq $493.5K
-  https://dexscreener.com/solana/4yrhms7ekgtbgjg77zj33tswrraqhscxdtuszqusughb
-• WETH/USDC (solana) — vol 1h $20.9K (2.3x vs 24h avg), liq $222.8K
-  https://dexscreener.com/solana/au971drpyhhrprnmebp5pdtwl2ny7nofb5vybjdjkr2e
-• SOL/cbBTC (base) — vol 1h $91.3K (2.1x vs 24h avg), liq $789.9K
-  https://dexscreener.com/base/0x8df6dd38d718bd726374521c2dcfe90eb9cb7d43
+Liquidity (≥ $2.5K or ≥ 10.0% of a pool)
+• Prov…1111 removed ≈$44.9K from DEMO/SOL on pumpswap (≈30.0% of the pool's SOL side) · tx ⚠️ Removed 30% of the pool's SOL side
 
-Tape, not advice. Source: DexScreener.
+Large trades (≥ $5.0K)
+• Trad…1111 bought $7.5K of DEMO at $0.00075 on pumpswap · tx
+• Trad…1111 bought $6.1K of DEMO at $0.00087 on raydium_cpmm · tx ⚠️ Price impact 23.5%; Outlier print (kept out of candles by Solami's price guard)
+
+New pools
+• New DEMO/USDC pool on meteora_dlmm · pool Pair…1111 · created by Crea…1111 · tx
+
+Graduations
+• DEMO graduated from pumpfun to a pumpswap pool (Pair…1111) · tx
+  mint authority: none · freeze authority: none · top-10 accounts 23.4% of supply
+
+Volume breakouts
+• DEMO: 5-min volume $18.3K, 4.5× its 1-hour baseline · 212 trades · ~131 wallets · mcap at trigger $75.0K (Solami surge)
+
+⚠️ = rule-based flag (README "Rule-based flags"), not a verdict.
+On-chain facts, not financial advice. Data: Solami (Blur stream + RPC), Solana mainnet.
 ```
 
-A pair only shows a `⚠️` line when one of the rule-based flags in [Risk flags](#risk-flags-rule-based-not-advice)
-fires for it - most pairs in a healthy market have none.
+```
+Tape summary DEMO · last 60 min · 15:00 UTC
+
+Trades: 1,284 (702 buys / 582 sells) · 431 wallets
+Volume: $1.24M (buys $660.0K / sells $580.0K)
+Liquidity: +$120.0K added / -$95.0K removed (net +$25.0K, 12 events)
+Last price: $0.00002231 (-3.20% over the window)
+Largest trade: $52.3K sell · tx
+
+Counted from Solami Blur swap/liquidity events received while connected.
+On-chain facts, not financial advice. Data: Solami (Blur stream + RPC), Solana mainnet.
+```
+
+On start, watchlist mode also posts a **"Now watching"** card per token: supply,
+decimals, token program, mint authority, freeze authority, Token-2022 extensions, top-10
+holder share, and any rule-based flags - all read live over Solami RPC.
+
+## Why Solami - which products do the real work
+
+Solami's own rule of thumb is *"read state with RPC, react to change with a stream"*
+(solami.dev/docs/which-product). This bot does exactly that:
+
+| Solami product | Endpoint | What it does in this bot |
+|---|---|---|
+| **Blur** (decoded market data, WebSocket) | `wss://ws.solami.dev/data/subscribe` | **Every event on the tape.** Typed `swap`, `liquidity`, `pool_create`, `token_create`, `graduation`, `surge`/`radar`, `transfer` and `metadata` events across every major DEX, USD already computed. Server-side filters (`type`, `address`, `min_volume_usd`) mean the bot downloads only what it can post about. |
+| **RPC** | `https://rpc.solami.dev/sol` | **Facts that are state, not events.** `getAccountInfo` (jsonParsed) for supply, mint/freeze authority and Token-2022 extensions; Solami's **`getTokenLargestAccountsV2`** for the top-20 holders (Solami retired the stock method); `getMultipleAccounts` for balances and owners of accounts that left the top 20; `getSlot` for the key check. |
+| **Data API** (REST, optional) | `https://api.solami.dev/data/token/metadata` | A token's symbol when the stream has not sent its `metadata` event yet. |
+
+How the pieces combine (the part no single endpoint gives you):
+
+- **Graduation + RPC**: when Blur reports a launchpad token graduating to an AMM pool,
+  the bot reads the mint over RPC and prints whether the mint and freeze authorities
+  are still active, Token-2022 extensions, and the top-10 holder share - right under it.
+- **Liquidity + swaps**: Blur liquidity events carry raw amounts; the bot values them with
+  the latest prices seen on Blur swaps and sizes them against the pool reserves reported
+  by those swaps, which is what makes "removed ≈30% of the pool" possible.
+- **Holders + authorities over time**: RPC snapshots are persisted, so a change is
+  reported even if it happened while the bot was down.
+
+Not used in v1, on purpose:
+
+- **Yellowstone gRPC / Mirage**: raw `SubscribeUpdate` frames that we would have to
+  decode ourselves - exactly the DEX-instruction parsing Blur already does ("if you were
+  about to write a DEX instruction parser, use Blur" - Solami docs). gRPC would also need
+  `grpcio`/protobuf dependencies.
+- **Webhooks**: a good fit for a quiet watchlist; the webhook *stream* is also a
+  WebSocket, so it could reuse this client in v2. Creating webhooks needs an account-API
+  permission (`WebhooksManage`) that a read-only bot should not require.
+- **Beam**: transaction landing. This bot never sends transactions - by design.
 
 ## Quick start
 
-1. **Get a bot token.** Message [@BotFather](https://t.me/BotFather) on Telegram,
-   `/newbot`, and copy the token it gives you. Add the bot as an admin of the channel
-   you want it to post to (it only needs permission to post messages).
-2. **Configure.**
+Python 3.9+. Nothing to `pip install` (see [Dependencies](#dependencies)).
+
+1. **Get a Solami key.** Sign up at [solami.dev](https://solami.dev) and, under
+   *Dashboard -> API keys*, create a **standard key** (`sk_...`) whose role has the
+   **`DataApi`** permission - Blur rejects RPC-only and gRPC-only keys. The same key
+   works for RPC and the Data API.
+2. **Get a bot token.** Message [@BotFather](https://t.me/BotFather), `/newbot`, copy the
+   token. Make the bot an admin of your channel (it only needs "Post messages").
+3. **Configure.**
    ```
    cp .env.example .env
    ```
-   Edit `.env`: fill in `BOT_TOKEN` and `CHANNEL_ID` (your channel's `@username`, or its
-   numeric id). The defaults for everything else are reasonable to start with.
-3. **Check the config - no network, no Telegram call:**
+   Fill in `BOT_TOKEN`, `CHANNEL_ID`, `SOLAMI_API_KEY`, and - for watchlist mode -
+   `WATCH_MINTS` (your token's mint address). Leave `WATCH_MINTS` empty for the firehose.
+4. **Check the config** (no network at all):
    ```
    python3 main.py --check
    ```
-4. **Run the tests** (see [Tests](#tests) - should finish in well under a second):
+5. **Check the key against live mainnet** (one RPC call, 20 s of the Blur stream, prints
+   what arrived; posts nothing):
    ```
-   python3 -m unittest discover -v
+   python3 main.py --check-live
    ```
-5. **Try it for real, without posting anything**, then run it for real:
+6. **Watch it for real without posting**, then run it:
    ```
-   python3 main.py --dry-run --once     # calls the real DexScreener API, prints instead of sending
-   python3 main.py --once               # calls the real DexScreener API AND posts to your channel
-   python3 main.py                      # runs forever, one cycle every INTERVAL_MIN minutes
+   python3 main.py --dry-run --duration 300   # live mainnet data, posts printed here
+   python3 main.py --announce                  # live, posting; --announce re-posts today's "Now watching" card
+   python3 main.py                             # run until stopped (Ctrl-C / SIGTERM stop cleanly)
    ```
 
-No `pip install` is required (see [Dependencies](#dependencies)); Python 3.9+ is enough.
+### Try it offline (no key, no Telegram)
+
+```
+python3 main.py --env examples/offline-demo.conf \
+    --replay-file tests/fixtures/solami/blur_frames.jsonl --dry-run
+```
+
+Replays **synthetic** Blur frames (hand-built from the documented event shapes, including
+a malformed line, an unknown event type and a server error notice) through the real
+parser, rules, dedup and formatter, and prints the posts. RPC-backed facts need a key,
+so they are skipped offline.
 
 ## Configuration
 
-Every setting lives in `.env` (see `.env.example` for the full, commented list; only the
-two required ones and the most common ones are repeated here).
+Every setting lives in `.env` (see `.env.example` for the full, commented list). Values
+are read **only** from that file, never from the process environment, so a key left in a
+shell by another project can't leak in.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `BOT_TOKEN` | *(required)* | From @BotFather. Never logged or printed - see [Secrets](#secrets). |
-| `CHANNEL_ID` | *(required)* | `@channel_username` or a numeric chat id. |
-| `CHAINS` | `solana` | Comma-separated DexScreener chain ids to watch. |
-| `INTERVAL_MIN` | `60` | Minutes between cycles; also the default "new pair" window. |
-| `MIN_LIQUIDITY_USD` | `5000` | Hard floor - pairs below this (or with unknown liquidity) are dropped before analysis. |
-| `DISCOVERY_QUERIES` | *(built-in per-chain hints)* | Search terms used to find candidate pairs; see below. |
-| `WATCHLIST` | *(empty)* | `chain:tokenAddress,...` - a project's own token(s), always checked directly. |
-| `VOLUME_SPIKE_RATIO` | `3` | 1h volume vs. flat 24h hourly average, to count as a "spike". |
-| `MIN_VOLUME_USD_FOR_SPIKE` | `1000` | Floor so dust volume never counts as a "spike". |
-| `RISK_LOW_LIQUIDITY_USD` | `25000` | Below this, a pair gets a "Low liquidity" flag (separate from the harder `MIN_LIQUIDITY_USD` cutoff above). |
-| `RISK_NEW_PAIR_MIN` | `30` | Below this age (minutes), a pair gets a "Very new pair" flag. |
-| `RISK_VOL_LIQ_RATIO` | `5` | Above this 24h-volume-to-liquidity ratio, a pair gets a "High volume vs liquidity" flag. |
+| `BOT_TOKEN` | *(required)* | From @BotFather. Never logged. |
+| `CHANNEL_ID` | *(required)* | `@channel_username` or numeric chat id. |
+| `SOLAMI_API_KEY` | *(required)* | Standard Solami key with `DataApi`. Never logged - it is scrubbed from every log line and traceback. |
+| `TAPE_MODE` | `auto` | `watchlist` if `WATCH_MINTS` is set, else `firehose`. |
+| `WATCH_MINTS` | *(empty)* | Comma-separated token mints (watchlist mode). |
+| `LARGE_TRADE_USD` | 5,000 / 50,000 | Trade size to post (watchlist / firehose). In firehose mode Blur filters on the server. |
+| `LIQ_ALERT_USD` | 2,500 / 50,000 | Liquidity add/remove size to post. |
+| `LIQ_ALERT_PCT` | `10` | Watchlist: also post changes of at least this % of the pool's quote reserve (and flag removals). |
+| `LIQ_REPORT_ADDS` | true / false | Report adds, not only removals. |
+| `SURGE_MIN_MULTIPLE`, `SURGE_MIN_MCAP_USD` | `5`, `250000` | Firehose: minimum breakout multiple and market cap. Watchlist posts every breakout of your token. |
+| `HOLDER_CHANGE_PCT` | `0.5` | Watchlist: top-holder changes and transfers/mints/burns of at least this % of supply. |
+| `TOP10_FLAG_PCT`, `PRICE_IMPACT_FLAG_PCT` | `50`, `10` | Flag thresholds (see below). |
+| `FLUSH_SEC` | `60` | Real-time items are batched into one post this often. |
+| `MAX_POSTS_PER_MIN` | `6` | Hard cap; posts are spaced evenly. |
+| `HOLDERS_POLL_MIN`, `AUTHORITY_RECHECK_MIN` | `5`, `30` | Watchlist RPC checks. |
+| `SUMMARY_EVERY_MIN`, `DIGEST_EVERY_MIN` | `60`, `15` | Watchlist summary / firehose launch digest (clock-aligned, `0` = off). |
+| `SOLAMI_WS_URL`, `SOLAMI_RPC_URL`, `SOLAMI_API_URL` | global endpoints | Pin a region by prefixing the host with `fra.`, `ams.` or `nyc.`. |
+| `SOLAMI_RPC_MAX_RPS` | `4` | Client-side RPC cap (Solami's Free plan allows 5 requests a second, Dev 50, Pro 200). |
+| `DATA_SOURCE` | `solami` | `dexscreener` switches to the legacy keyless tape (see below). |
 
-Everything else (post size cap, HTTP timeout, request pacing, cache lifetime, log level,
-where the dedup database lives) has a working default - see `.env.example`.
+## Modes
 
-## How pair discovery works
+**watchlist** (a project's own token(s)) - one Blur subscription filtered to
+`WATCH_MINTS` (`type=swap,liquidity,pool_create,token_create,graduation,surge,radar,transfer`).
+Posts: large trades; liquidity adds/removes by size or pool share; every new pool and
+graduation of the token; every Solami surge/radar breakout; transfers, mints and burns of
+at least `HOLDER_CHANGE_PCT` of supply; top-20 holder balance changes (RPC poll every
+`HOLDERS_POLL_MIN`); mint/freeze authority and Token-2022 changes (RPC re-check every
+`AUTHORITY_RECHECK_MIN`); an hourly summary (trades, buy vs sell count and volume,
+unique wallets, liquidity in/out, last price and change, largest trade); a "Now watching"
+card on start (once per UTC day, or with `--announce`).
 
-DexScreener's public API is search- and lookup-oriented - there is no single endpoint
-that means "every pair created on chain X in the last N minutes". So this bot builds
-that itself, honestly, out of the pieces the API does offer:
+**firehose** (the whole market) - two Blur subscriptions, because a type-specific filter
+such as `min_volume_usd` makes Blur return *only* swaps:
+`market` (`type=liquidity,pool_create,token_create,graduation,surge,radar`) and
+`large-trades` (`type=swap&min_volume_usd=LARGE_TRADE_USD`, filtered on Solami's side).
+Posts: whale trades; large liquidity removals; every graduation with mint/freeze
+authority and top-10 share read over RPC; big breakouts; a launch digest every
+`DIGEST_EVERY_MIN` (new tokens, new pools and graduations by venue, plus stream health).
 
-1. For each chain in `CHAINS`, it calls `GET /latest/dex/search?q=<term>` with a search
-   term likely to surface a lot of pairs on that chain (its native/major quote token,
-   e.g. `SOL` for Solana, `WETH` for most EVM chains - see `DEFAULT_CHAIN_QUERY_HINTS` in
-   `alerts_bot/runner.py`, or override with `DISCOVERY_QUERIES`).
-2. Results are filtered down to the configured chain (the search endpoint returns
-   matches across *all* chains), deduplicated by pair address, and passed through
-   `MIN_LIQUIDITY_USD`.
-3. Anything left in `WATCHLIST` is fetched directly via
-   `GET /token-pairs/v1/{chainId}/{tokenAddress}` and merged in - useful for a project
-   that wants its *own* token reliably covered regardless of what the search terms
-   happen to surface that cycle.
-4. "New" = `pairCreatedAt` inside the last `NEW_PAIR_WINDOW_MIN`; "volume anomaly" = 1h
-   volume at least `VOLUME_SPIKE_RATIO` times the flat 24h hourly average, above the
-   `MIN_VOLUME_USD_FOR_SPIKE` floor. Both live in `alerts_bot/analysis.py`.
+## Rule-based flags (not advice)
 
-Practically: this surfaces a solid slice of chain activity, especially with a `WATCHLIST`
-entry for anything you specifically care about, but it is not - and cannot honestly claim
-to be - a complete real-time index of every pair on a chain.
+Each rule checks one publicly verifiable fact (`alerts_bot/tape/flags.py`):
 
-## Data source & rate limits
+| Flag | Fires when | Source |
+|---|---|---|
+| Mint authority active | the mint has a mint authority - supply can still grow | RPC `getAccountInfo` |
+| Freeze authority active | the mint has a freeze authority - accounts can be frozen | RPC `getAccountInfo` |
+| Token-2022 permanent delegate / transfer fee / transfer hook / default frozen / paused / non-transferable | the extension is present (fee > 0, paused = true, ...) | RPC `getAccountInfo` |
+| Top-10 concentration | top-10 holder accounts hold >= `TOP10_FLAG_PCT` of supply (can include pools and exchanges) | RPC `getTokenLargestAccountsV2` |
+| Price impact | a trade's `price_impact_pct` >= `PRICE_IMPACT_FLAG_PCT` | Blur `swap` |
+| Outlier print | Solami's price guard marked the trade `candle_ok: false` | Blur `swap` |
+| Large removal | a removal >= `LIQ_ALERT_PCT` of the pool's quote-side reserve | Blur `liquidity` + reserves from Blur swaps |
 
-Checked directly against `docs.dexscreener.com` and the live API on **2026-09-24**:
+The flags do not add up to a score, and a token with no flags has not been declared safe.
 
-- **No API key.** Calling `/latest/dex/search`, `/token-pairs/v1/{chainId}/{tokenAddress}`,
-  `/tokens/v1/{chainId}/{tokenAddresses}` and `/latest/dex/pairs/{chainId}/{pairId}`
-  directly (no auth headers beyond a `User-Agent`) returned normal `200` responses.
-- **Rate limit:** the docs state "60 requests per minute" for a *neighbouring* family of
-  endpoints (`/token-profiles/*`, `/ads/latest/v1`, `/metas/*`). No explicit number is
-  published for the search/pairs endpoints this bot actually uses, and five back-to-back
-  requests during the check returned plain `200`s with no rate-limit headers.
-- **No Terms of Service or usage policy page was found** linked from the docs site (root,
-  FAQ, and API reference pages were checked).
-
-Absent a published number for the endpoints this bot calls, it does not assume "no
-limit" - `alerts_bot/dexscreener.py`'s `RateLimiter` keeps requests at least
-`MIN_REQUEST_INTERVAL_SEC` (default 1.2s, ≈50/min) apart, and its `Cache` (default 60s
-TTL) avoids repeating an identical request within one cycle. With the default
-`INTERVAL_MIN=60` and a short chain list, a real cycle makes a handful of requests per
-hour, not per second - this is a periodic tape, not a scraper. If you widen `CHAINS`,
-lower `INTERVAL_MIN` a lot, or add a long `WATCHLIST`, re-check the docs above before
-lowering `MIN_REQUEST_INTERVAL_SEC`.
-
-If DexScreener's terms change to require a key or prohibit this kind of use, this is the
-section to update - and the client to point at a different source or pause.
-
-## Risk flags (rule-based, not advice)
-
-`alerts_bot/risk_flags.py` computes a short list of factual flags from public metrics,
-nothing else:
-
-- **Liquidity unknown** - DexScreener did not report it (common for very new pairs); the
-  bot never treats "unknown" as "fine".
-- **Low liquidity** - below `RISK_LOW_LIQUIDITY_USD`.
-- **Very new pair** - younger than `RISK_NEW_PAIR_MIN`.
-- **High 24h volume vs liquidity** - 24h volume is at least `RISK_VOL_LIQ_RATIO` times
-  liquidity (can indicate low depth relative to trading activity - a fact, not a
-  verdict).
-
-These do not add up to a score, and an **empty flag list is not a claim that a pair is
-safe** - it only means none of these four specific rules fired. Every post carries the
-`Tape, not advice. Source: DexScreener.` footer for exactly this reason; if you extend
-this template, keep that pairing intact.
-
-## Deduplication
-
-`alerts_bot/dedup.py` keeps a small SQLite database (default `state/seen.db`) so a
-restart, or a network retry, never reposts the same thing:
-
-- A **new pair** alert is sent at most once per pair, ever - a pair is only "new" once.
-- A **volume spike** alert is sent at most once per pair per UTC clock hour, so a pair
-  that keeps spiking can be reported again later without repeating every single cycle
-  inside the same hour.
-
-## Secrets
-
-`BOT_TOKEN` is read only from `.env` (never from the process environment, so a token left
-in a shell from another project can't leak in by accident) and is scrubbed from every log
-line by `alerts_bot/telegram.TokenFilter`, wired up in `main.py`. `.env` is git-ignored;
-never commit it.
-
-## Project layout
+## Architecture
 
 ```
-main.py                                    entry point: --check / --once / --dry-run / loop
-alerts_bot/
-  config.py           .env loading and validation
-  dexscreener.py       DexScreener API client (urllib, rate limit, cache)
-  analysis.py          Pair model, new-pair / volume-anomaly detection
-  risk_flags.py         rule-based flags over public metrics
-  formatter.py          Telegram post text (HTML parse mode)
-  telegram.py            Bot API client (sendMessage only)
-  dedup.py                SQLite "already posted?" store
-  runner.py                one fetch -> analyze -> post cycle
-tests/                    unittest suite + tests/fixtures/*.json (no network)
-deploy/telegram-onchain-alerts.service     systemd unit
-Dockerfile                                  optional container build
-.env.example
+                         Solana mainnet
+                               |
+        +----------------------+-----------------------+
+        |                   Solami                     |
+        |  Blur WebSocket         RPC          Data API (optional)
+        |  /data/subscribe        /sol         /data/token/metadata
+        +--------+----------------+-------------+------+
+                 | decoded events | point reads |
+   +-------------v-----------+ +--v-------------v-------------+
+   | solami/websocket.py     | | solami/rpc.py                |
+   |  RFC 6455 client, TLS   | |  getAccountInfo (jsonParsed) |
+   | solami/blur.py          | |  getTokenLargestAccountsV2   |
+   |  1 thread per socket,   | |  getMultipleAccounts, getSlot|
+   |  backoff + close codes  | |  RPS cap, retry -32005/429   |
+   | solami/events.py        | | solami/data_api.py           |
+   |  typed, tolerant parser | +--------------+---------------+
+   +-------------+-----------+                |
+                 | queue                      |
+   +-------------v----------------------------v---------------+
+   | tape/engine.py   rules, batching, summaries, holders,    |---- dedup.py (SQLite):
+   |                  authorities; confirm-after-send         |     sent items + snapshots
+   | tape/state.py    metadata, prices, pool reserves, stats  |
+   | tape/flags.py    rule-based flags                        |
+   | tape/format.py   Telegram HTML, escaping, length limits  |
+   +-------------+--------------------------------------------+
+                 | posts, every FLUSH_SEC
+   +-------------v-------------+
+   | tape/loop.py  run loop,   |---- state/heartbeat.json, SIGTERM/SIGINT
+   |  publisher (posts/min cap)|
+   | telegram.py   sendMessage |
+   +---------------------------+
+```
+
+## Reliability
+
+- **Reconnects**: every Blur subscription runs in its own thread and reconnects on its
+  own - exponential backoff with full jitter (1 s .. 60 s), reset after a stable minute.
+  Close codes are read, not guessed: `1001` (node restart) -> reconnect in 1 s; `4002`
+  (bandwidth and balance empty) and HTTP 401/403 (key rejected) -> retry every 5 min
+  with a clear log line; `4029` (stream limit) -> back off >= 60 s.
+- **Liveness**: the client pings after 20 s of silence and drops the connection after
+  90 s without data or pong. Server pings are answered.
+- **One bad event never stops the loop**: the parser never raises (unknown event types
+  are counted and ignored, as Solami's docs ask), and the loop catches per-event errors.
+- **No duplicates, no lost facts**: items are recorded as sent only after Telegram
+  confirms; a failed send is retried on the next flush (3 attempts). SQLite dedup
+  survives restarts; `--dry-run` uses a separate state file.
+- **Rate limits**: RPC is capped client-side (`SOLAMI_RPC_MAX_RPS`) and retries `-32005`
+  / HTTP 429 with exponential backoff and jitter, as Solami's error guide asks; Telegram
+  posts are capped per minute and 429s honour `retry_after`.
+- **Graceful shutdown**: SIGTERM/SIGINT stop reading, close each socket with a proper
+  close frame, flush queued items and exit (systemd `TimeoutStopSec=30`, `docker stop`).
+- **Heartbeat**: `state/heartbeat.json` is rewritten every 30 s with per-stream health
+  (connected, messages, reconnects, last error); the Docker image has a HEALTHCHECK on it.
+
+## How to verify the facts
+
+Every line carries its evidence:
+
+- **Trades, liquidity, pools, graduations, transfers**: the `tx` link opens the
+  transaction on Solscan - amounts, wallet and pool are all there.
+- **USD values** of trades are Blur's own `volume_usd` / `price_usd`. Liquidity values
+  are estimates marked `≈`: the legs valued at the latest Blur prices (one priced leg is
+  doubled, exact for constant-product pools). Pool share = the event's quote amount /
+  the pool's quote reserve before it.
+- **Authorities and extensions**: ask any Solana RPC yourself -
+  `curl -s "https://rpc.solami.dev/sol?api_key=$SOLAMI_API_KEY" -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"getAccountInfo","params":["<MINT>",{"encoding":"jsonParsed"}]}'`
+  and read `mintAuthority` / `freezeAuthority` / `extensions`.
+- **Top holders** are *token accounts* (they can be pool vaults or exchanges); compare
+  with the Solscan "Holders" tab.
+- **Summaries** count only events received while the bot was connected; a window that
+  started mid-hour says "since HH:MM".
+
+## Limits
+
+- **Not low-latency by design**: posts are batched (`FLUSH_SEC`). This is a tape for
+  people, not a trading feed.
+- **Stream gaps**: events that confirm while a socket is reconnecting are not replayed in
+  v1 (Blur's replay mode could backfill a watchlist gap - a v2 item).
+- **Top holders** come from a periodic RPC poll (default 5 min), not a stream.
+- **Plan limits apply**: Blur streams need a standard key, streaming bandwidth or balance,
+  and at most a plan-dependent number of concurrent streams (firehose uses 2). Solami's Free
+  plan has no WebSocket connections: run the tape on a trial, a paid plan or pay-as-you-go
+  balance (Blur is metered per delivered byte).
+- **Facts are only as good as the source**: numbers come from Solana via Solami; every
+  line links to Solscan so a reader can cross-check.
+
+## Assumptions to verify with a real key
+
+Solami's docs describe the Blur stream in detail, but a few field names are only shown in
+passing. The parser accepts the likely variants and never invents a value, and every
+assumption below is visible in one command:
+
+```
+python3 main.py --check-live 60 --record state/frames.jsonl
+```
+
+It prints the RPC answer for each watched mint, event counts per type, and one raw
+example per event type, and appends every raw frame to the file (usable as a test
+fixture). Check:
+
+| # | Assumption | Where |
+|---|---|---|
+| A1 | `liquidity` uses `kind`, `base_mint`, `quote_mint`, `base_amount`, `quote_amount`, `provider`, `pool`, `dex` (swap-style names); a USD field, if any, is picked up from `value_usd`/`volume_usd`/`amount_usd`/`usd` | `solami/events.py` |
+| A2 | `pool_create` carries the token as `mint` or `base_mint` (docs and playground differ) | `solami/events.py` |
+| A3 | `transfer` has a raw `amount` (and maybe `decimals`) next to `kind`, `mint`, `src_owner`, `dst_owner` | `solami/events.py` |
+| A4 | `metadata` has `mint`, `name`, `symbol`, `decimals` flat (a nested `metadata` object also works) | `solami/events.py` |
+| A5 | `graduation` has `mint`, `launchpad`, `dex`, `pool` (+ `signature` if present) | `solami/events.py` |
+| A6 | swap `price` is quote-token units per base token, so `price_usd / price` = quote USD price (guarded by sanity bounds) | `tape/state.py` |
+| R1 | `getTokenLargestAccountsV2` takes `[mint, {commitment}]` and returns `value` or `value.accounts` | `solami/rpc.py` |
+| D1 | `GET /data/token/metadata?address=` returns `symbol`/`name` (top level or nested) | `solami/data_api.py` |
+| K1 | one standard key with `DataApi` works for Blur, RPC and the Data API | `main.py --check-live` |
+
+Already verified without a key (2026-09-26): the Blur and RPC endpoints answer
+`401 {"message":"missing api key"}` / `{"message":"unauthorized"}` to this client, so
+the TLS + WebSocket upgrade path and the error handling work against the real hosts.
+
+## Deployment
+
+**systemd** (Linux server): see `deploy/telegram-onchain-alerts.service` - install steps
+are in its header. `--check` runs before every start; a config error exits 2 and is not
+restarted in a loop.
+
+**Docker**:
+```
+docker build -t solana-tape .
+docker run -d --name solana-tape \
+  -v $(pwd)/.env:/app/.env:ro \
+  -v solana-tape-state:/app/state \
+  solana-tape
 ```
 
 ## Tests
-
-Standard library only - no `pytest` needed (though it will run this suite fine too, if
-you already have it):
 
 ```
 python3 -m unittest discover -v
 ```
 
-All tests run against saved JSON fixtures in `tests/fixtures/` and never touch the
-network - see `tests/helpers.py` for the fake HTTP layer used to test
-`alerts_bot/dexscreener.py` without a real request.
+223 tests, about 1.5 s, standard library only, **no network**: synthetic Blur frames and
+recorded JSON-RPC shapes in `tests/fixtures/solami/`, a scripted WebSocket server on a
+socketpair for the protocol client (`tests/ws_helpers.py`), fake RPC/bot objects for the
+engine and the loop. CI (`.github/workflows/tests.yml`) runs them on Python 3.9, 3.11 and
+3.13, plus `--check` and the offline demo.
 
-## Deployment
+## Secrets
 
-**systemd** (Linux server) - see `deploy/telegram-onchain-alerts.service` for the full
-unit file and install steps in its header comments.
+`BOT_TOKEN` and `SOLAMI_API_KEY` are read only from `.env` and scrubbed from every log
+line and traceback (`telegram.TokenFilter`). URLs are logged with the key replaced by
+`<SOLAMI_API_KEY>`, so a terminal can be screen-recorded safely. `.env` is git-ignored.
 
-**Docker** (optional) - see `Dockerfile`:
+## Project layout
+
 ```
-docker build -t telegram-onchain-alerts .
-docker run -d --name onchain-alerts \
-  -v $(pwd)/.env:/app/.env:ro \
-  -v onchain-alerts-state:/app/state \
-  telegram-onchain-alerts
+main.py                     entry point: --check / --check-live / --dry-run / --replay-file / run
+alerts_bot/
+  solami/                   Solami data layer (the only data path in the default mode)
+    websocket.py              RFC 6455 client, stdlib only
+    blur.py                   Blur subscriptions, reader threads, reconnect/backoff, replay source
+    events.py                 typed, tolerant Blur event parser
+    rpc.py                    JSON-RPC client: mint facts, top holders, balances
+    data_api.py               optional symbol lookup (REST)
+  tape/                     the live tape
+    engine.py                 rules, batching, summaries, digests, holder/authority tracking
+    state.py                  metadata cache, prices, pool reserves, window stats
+    flags.py                  rule-based flags
+    format.py                 Telegram HTML posts
+    loop.py                   run loop, publisher, heartbeat, graceful shutdown
+  config.py                 .env loading and validation
+  dedup.py                  SQLite: sent items + persisted snapshots
+  telegram.py               Bot API client (sendMessage only), secret scrubbing
+  dexscreener.py, analysis.py, risk_flags.py, formatter.py, runner.py   legacy DexScreener tape
+tests/                      unittest suite + fixtures (no network)
+examples/offline-demo.conf  settings for the offline replay
+deploy/                     systemd unit
+Dockerfile
 ```
+
+## Legacy DexScreener mode
+
+The original template - new pairs and volume anomalies polled from DexScreener's public
+API, no key - still works unchanged with `DATA_SOURCE=dexscreener` (settings at the end
+of `.env.example`: `CHAINS`, `INTERVAL_MIN`, `WATCHLIST`, ...; run with `--once` for a
+single cycle). It is off by default and uses no Solami product; nothing in the Solami
+mode calls DexScreener (posts only link to its chart page).
+
+![The legacy DexScreener tape: an example "Volume anomalies" channel post](docs/preview.png)
 
 ## Dependencies
 
-Standard library only (`urllib`, `sqlite3`, `json`, `argparse`, ...). There is nothing to
-install: clone it, configure it, run it.
+Standard library only (`ssl`, `socket`, `urllib`, `sqlite3`, `json`, `threading`, ...).
+The WebSocket client is ~440 lines including its docs, in
+`alerts_bot/solami/websocket.py`, fully covered by tests, so there is nothing to install and nothing to audit beyond this repository.
 
 The one exception is [Pillow](https://python-pillow.org/), needed only to *regenerate*
 `docs/preview.png` via `docs/make_preview.py` - never to run the bot.
