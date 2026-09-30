@@ -1,6 +1,8 @@
 # Solami fixtures
 
-Everything in this folder is **synthetic** and used only by the offline test suite:
+Everything in this folder is **synthetic** and used only by the offline test suite, except
+`live_frames_2026-09-30.jsonl` - real frames of the first live run, one of each type, with the
+`api_key` that Solami puts into metadata `image_url` removed:
 
 - `blur_frames.jsonl` - hand-built Blur WebSocket frames following the event shapes documented at
   solami.dev/docs/blur (read 2026-09-26). Made-up base58 addresses. Also used by the offline demo

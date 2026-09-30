@@ -217,17 +217,24 @@ class TapeEngine:
 
     def liquidity_usd(self, ev, pool):
         """(USD value, is_estimate) of a liquidity event. Uses the stream's own USD field
-        if it has one (assumption A1), else values the legs at the last prices seen on
-        the stream. With only one leg priced it doubles it - exact for constant-product
-        pools, an estimate elsewhere - and marks the number with "≈"."""
+        if it has one (assumption A1), then the stream's USD value of each leg (live frames:
+        base_usd / quote_usd), else values the legs at the last prices seen on the stream.
+        With only one leg priced it doubles it - exact for constant-product pools, an
+        estimate elsewhere - and marks the number with "≈"."""
         if ev.value_usd is not None:
             return ev.value_usd, False
+        stream_base = ev.base_usd if ev.base_usd is not None and ev.base_usd > 0 else None
+        stream_quote = ev.quote_usd if ev.quote_usd is not None and ev.quote_usd > 0 else None
+        if stream_base is not None and stream_quote is not None:
+            return stream_base + stream_quote, False
         quote_mint = ev.quote_mint or (pool.quote_mint if pool else "")
         qdec = _first_not_none(ev.quote_decimals, pool.quote_decimals if pool else None, self.meta.decimals(quote_mint))
         bdec = _first_not_none(ev.base_decimals, pool.base_decimals if pool else None, self.meta.decimals(ev.mint))
         q_price, b_price = self.prices.quote_price(quote_mint), self.prices.token_price(ev.mint)
         quote_leg = ev.quote_amount / 10 ** qdec * q_price if None not in (ev.quote_amount, qdec, q_price) else None
         base_leg = ev.base_amount / 10 ** bdec * b_price if None not in (ev.base_amount, bdec, b_price) else None
+        quote_leg = stream_quote if stream_quote is not None else quote_leg
+        base_leg = stream_base if stream_base is not None else base_leg
         if quote_leg is not None and base_leg is not None:
             return quote_leg + base_leg, True
         if quote_leg is not None:

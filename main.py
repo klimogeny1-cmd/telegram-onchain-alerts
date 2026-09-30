@@ -26,7 +26,7 @@ import time
 
 from alerts_bot.config import Config
 from alerts_bot.dedup import DedupStore
-from alerts_bot.telegram import BotAPI, TokenFilter
+from alerts_bot.telegram import BotAPI, TokenFilter, without_secrets
 
 CONFIG_ERROR_EXIT_CODE = 2  # matches deploy/telegram-onchain-alerts.service RestartPreventExitStatus=2
 
@@ -34,12 +34,15 @@ CONFIG_ERROR_EXIT_CODE = 2  # matches deploy/telegram-onchain-alerts.service Res
 class DryRunBot:
     """Drop-in replacement for telegram.BotAPI: prints what would be sent instead of
     calling the Telegram API. A real BotAPI is never constructed in --dry-run mode, so no
-    token - real or fake - is ever used to contact Telegram."""
+    token - real or fake - is ever used to contact Telegram. What it prints is what BotAPI
+    would send: links without their keys (telegram.without_secrets)."""
 
-    def __init__(self):
+    def __init__(self, secrets=()):
         self.sent = []
+        self.secrets = tuple(s for s in secrets if s)
 
     def send_message(self, chat_id, text, **_kwargs):
+        text = without_secrets(text, self.secrets)
         self.sent.append((chat_id, text))
         print("----- DRY RUN: would send to %s -----" % chat_id)
         print(text)
@@ -163,7 +166,9 @@ def run_solami(args, config, log):
 
     stop_event = threading.Event()
     _install_signal_handlers(stop_event, log)
-    bot = DryRunBot() if args.dry_run else BotAPI(config.bot_token, timeout=config.request_timeout_sec)
+    secrets = (config.solami_api_key,)
+    bot = DryRunBot(secrets) if args.dry_run else BotAPI(config.bot_token, timeout=config.request_timeout_sec,
+                                                         secrets=secrets)
     if args.dry_run:
         log.info("--dry-run: posts will be printed here, not sent to Telegram")
     channel = config.channel_id or "@dry_run_channel"
@@ -230,9 +235,11 @@ def check_live(config, settings, subscriptions, seconds, record_path, log):
     record = open(record_path, "a", encoding="utf-8") if record_path else None
     record_lock = threading.Lock()
 
-    def write_raw(_name, raw):            # called from the reader threads
+    secrets = (config.solami_api_key,)
+
+    def write_raw(_name, raw):            # called from the reader threads; a frame can carry the key in a link
         with record_lock:
-            record.write(raw.rstrip("\n") + "\n")
+            record.write(without_secrets(raw.rstrip("\n"), secrets) + "\n")
 
     try:
         stream = BlurStream(config.solami_api_key, subscriptions, base_url=config.solami_ws_url,
@@ -256,7 +263,7 @@ def check_live(config, settings, subscriptions, seconds, record_path, log):
     total = sum(counts.values())
     print("BLUR events by type: %s" % (", ".join("%s=%d" % kv for kv in sorted(counts.items())) or "none"))
     for event_type, raw in sorted(examples.items()):
-        text = json.dumps(raw, sort_keys=True)
+        text = without_secrets(json.dumps(raw, sort_keys=True), secrets)
         print("  example %s: %s" % (event_type, text if len(text) <= 900 else text[:900] + " ..."))
     if record_path:
         print("raw frames appended to %s" % record_path)
@@ -289,7 +296,9 @@ def run_dexscreener(args, config, log):
         cache=Cache(config.cache_ttl_sec),
     )
     dedup_store = DedupStore(config.state_db_path)
-    bot = DryRunBot() if args.dry_run else BotAPI(config.bot_token, timeout=config.request_timeout_sec)
+    secrets = (config.solami_api_key,)
+    bot = DryRunBot(secrets) if args.dry_run else BotAPI(config.bot_token, timeout=config.request_timeout_sec,
+                                                         secrets=secrets)
     if args.dry_run:
         log.info("--dry-run: posts will be printed here, not sent to Telegram")
 

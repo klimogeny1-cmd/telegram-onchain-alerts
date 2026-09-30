@@ -23,6 +23,8 @@ listed in README "Assumptions to verify with a real key"):
       the docs playground reads `kind`, `base_mint`, `dex`. Field names for the legs are
       assumed to mirror `swap` (base_amount / quote_amount / *_decimals, quote_mint,
       pool, provider). A USD value is used only if a field such as `value_usd` exists.
+      Live frames (2026-09-30): the leg names are right, and the USD value comes per leg as
+      `base_usd` / `quote_usd` ("0" when the token has no price), with post-event reserves.
   A2. `pool_create`: the docs call it "same shape as token_create with the name fields
       blank" (so `mint`), while the playground reads `base_mint`. Both are accepted.
   A3. `transfer`: `kind` (transfer|mint|burn), `mint`, `src_owner`, `dst_owner` are in
@@ -186,6 +188,8 @@ class LiquidityChange(BlurEvent):
     base_reserve: Optional[int] = None          # only if the stream reports post-event reserves
     quote_reserve: Optional[int] = None
     value_usd: Optional[float] = None           # only if the stream reports a USD value (A1)
+    base_usd: Optional[float] = None            # the USD value of each leg, as the stream reports it (live:
+    quote_usd: Optional[float] = None           # base_usd / quote_usd; 0 = no price for that token)
 
     def _key_suffix(self):
         return "%s:%s" % (self.kind, self.quote_amount)
@@ -305,6 +309,8 @@ def _parse_liquidity(raw):
         base_reserve=to_int(raw.get("base_reserve")),
         quote_reserve=to_int(raw.get("quote_reserve")),
         value_usd=to_float(_first(raw, "value_usd", "volume_usd", "amount_usd", "usd")),
+        base_usd=to_float(raw.get("base_usd")),
+        quote_usd=to_float(raw.get("quote_usd")),
         **_common(raw, "liquidity"))
 
 

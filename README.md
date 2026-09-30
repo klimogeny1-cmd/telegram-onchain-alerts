@@ -346,6 +346,21 @@ Already verified without a key (2026-09-26): the Blur and RPC endpoints answer
 `401 {"message":"missing api key"}` / `{"message":"unauthorized"}` to this client, so
 the TLS + WebSocket upgrade path and the error handling work against the real hosts.
 
+**First live run (2026-09-30, `--check-live 60`, firehose):** RPC answered, both Blur
+subscriptions connected, 215 frames, no parse errors. One example of each type is in
+`tests/fixtures/solami/live_frames_2026-09-30.jsonl` (`tests/test_solami_live.py`):
+
+| # | What the live frames showed |
+|---|---|
+| A1 | leg names as assumed; no single USD field - the value comes **per leg** as `base_usd` / `quote_usd` (`"0"` = no price for that token), with post-event reserves. The parser now reads both legs, and a liquidity event is valued even before any swap has given a price |
+| A2 | `pool_create` carries both `mint` and `base_mint` (same value) |
+| A4 | flat `mint`, `name`, `symbol`, `decimals`; the picture as `logo_uri` and as `image_url` - **`image_url` carries the account's `api_key`** (see "Secrets") |
+| A5 | `graduation` has `mint`, `launchpad`, `dex`, `pool`, `creator`, no `signature` |
+| - | `surge` / `radar`, `token_create` as documented; `connected` is a stream notice, not posted |
+
+Not seen in 60 s, still to verify: A3 (`transfer` - not subscribed), A6 (no large swap came),
+R1 and D1 (no watched mint), and the Data API part of K1.
+
 ## Deployment
 
 **systemd** (Linux server): see `deploy/telegram-onchain-alerts.service` - install steps
@@ -378,6 +393,14 @@ engine and the loop. CI (`.github/workflows/tests.yml`) runs them on Python 3.9,
 `BOT_TOKEN` and `SOLAMI_API_KEY` are read only from `.env` and scrubbed from every log
 line and traceback (`telegram.TokenFilter`). URLs are logged with the key replaced by
 `<SOLAMI_API_KEY>`, so a terminal can be screen-recorded safely. `.env` is git-ignored.
+
+Solami's `metadata` frames give the token picture as a link with **your** key in it
+(`image_url: .../data/token/image/<mint>?api_key=...`, seen live 2026-09-30). So nothing
+leaves the process with a key: every post goes through `telegram.without_secrets`, which
+cuts `api_key`, `key`, `token` and similar parameters out of every link and replaces the
+bot token and the Solami key wherever they stand; `--dry-run` prints exactly that text;
+`--check-live` prints its examples and writes `--record` frames the same way. A recording
+made before 2026-09-30 may hold the key: search it for `api_key=` before sharing it.
 
 ## Project layout
 

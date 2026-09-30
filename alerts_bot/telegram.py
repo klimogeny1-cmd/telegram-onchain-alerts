@@ -7,12 +7,39 @@ need, trimmed down to one call.
 """
 import json
 import logging
+import re
 import socket
 import time
 import urllib.error
 import urllib.request
 
 log = logging.getLogger("telegram")
+
+# A link can carry a key in its query: Solami's `metadata` frames give the token picture as
+# ".../data/token/image/<mint>?api_key=<your key>" (seen live 2026-09-30). Nothing sent to a
+# channel keeps such a parameter, whatever part of a post the link ends up in.
+SECRET_PARAMS = ("api_key", "apikey", "api-key", "key", "token", "access_token", "auth_token", "secret",
+                 "client_secret", "password")
+_LINK_RE = re.compile(r"\b(?:https?|wss?)://[^\s<>\"']+", re.I)
+_SECRET_PARAM_RE = re.compile(r"([?&]|&amp;)(?:%s)=[^&#\s\"'<>]*" % "|".join(re.escape(p) for p in SECRET_PARAMS),
+                              re.I)
+
+
+def without_secrets(text, secrets=()):
+    """The text with every link stripped of its secret query parameters (api_key, key, token
+    and the like) and every known secret (the bot token, the Solami key) replaced, wherever
+    it stands. The rest of each link is kept as it was."""
+
+    def clean(match):
+        link = _SECRET_PARAM_RE.sub(lambda m: "?" if m.group(1) == "?" else "", match.group(0))
+        link = re.sub(r"\?(?:&amp;|&)", "?", link)
+        return re.sub(r"\?(?=#|$)", "", link)          # a query left empty goes too
+
+    text = _LINK_RE.sub(clean, str(text))
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, "<hidden>")
+    return text
 
 
 class TelegramError(Exception):
@@ -54,12 +81,13 @@ class TokenFilter(logging.Filter):
 
 
 class BotAPI:
-    def __init__(self, token, base="https://api.telegram.org", timeout=20):
+    def __init__(self, token, base="https://api.telegram.org", timeout=20, secrets=()):
         if not token:
             raise ValueError("BOT_TOKEN is empty")
         self._token = token
         self._base = "%s/bot%s/" % (base, token)
         self.timeout = timeout
+        self._secrets = (token,) + tuple(s for s in secrets if s)   # never in a post (without_secrets)
 
     def _clean(self, text):
         return str(text).replace(self._token, "<TOKEN>")
@@ -99,7 +127,7 @@ class BotAPI:
         raise TelegramError(method, "retries", "gave up")
 
     def send_message(self, chat_id, text, parse_mode="HTML", disable_preview=True):
-        params = {"chat_id": chat_id, "text": text, "parse_mode": parse_mode}
+        params = {"chat_id": chat_id, "text": without_secrets(text, self._secrets), "parse_mode": parse_mode}
         if disable_preview:
             params["link_preview_options"] = {"is_disabled": True}
         return self.call("sendMessage", params)

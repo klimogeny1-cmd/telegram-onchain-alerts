@@ -24,6 +24,17 @@ Solana Tape: the bot now posts a live Solana mainnet tape built on [Solami](http
 - A standard-library WebSocket client with reconnects, backoff and liveness checks; a
   heartbeat file and a Docker health check.
 
+- First live run (2026-09-30): real Blur frames of every type in
+  `tests/fixtures/solami/live_frames_2026-09-30.jsonl`; liquidity is valued from the
+  stream's own `base_usd` / `quote_usd`.
+
+### Security
+
+- No key in a post: links lose `api_key` / `key` / `token` parameters and the bot token
+  and the Solami key are replaced (`telegram.without_secrets`) in every post, in
+  `--dry-run` output and in `--check-live` examples and `--record` files. Solami puts the
+  account key into metadata `image_url`.
+
 ### Changed
 
 - `DATA_SOURCE` defaults to `solami`. The original keyless DexScreener tape still works
