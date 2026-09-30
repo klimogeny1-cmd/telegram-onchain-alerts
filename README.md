@@ -7,8 +7,9 @@ mainnet to a channel: large trades, liquidity moving in and out, new pools, laun
 graduations, volume breakouts, big transfers and burns, top-holder balance changes and
 mint/freeze-authority changes - each line with a link you can check on Solscan.
 
-Status: built and tested offline against Solami's documented event shapes (223 tests); the
-first run with a live key is pending — see "Assumptions to verify with a real key".
+Status: verified against live Solana mainnet data on 2026-09-30 - `--check-live`: Solami RPC
+and both Blur streams, over 200 decoded events a minute, no parse errors (see "First live
+run"); 235 offline tests.
 
 Data comes from **[Solami](https://solami.dev)**: the Blur decoded-event stream is the
 real-time backbone, and Solami RPC answers "what is true right now" about a token. No
@@ -347,7 +348,7 @@ Already verified without a key (2026-09-26): the Blur and RPC endpoints answer
 the TLS + WebSocket upgrade path and the error handling work against the real hosts.
 
 **First live run (2026-09-30, `--check-live 60`, firehose):** RPC answered, both Blur
-subscriptions connected, 215 frames, no parse errors. One example of each type is in
+subscriptions connected, 216 frames in 60 s, no parse errors. One example of each type is in
 `tests/fixtures/solami/live_frames_2026-09-30.jsonl` (`tests/test_solami_live.py`):
 
 | # | What the live frames showed |
@@ -382,7 +383,7 @@ docker run -d --name solana-tape \
 python3 -m unittest discover -v
 ```
 
-223 tests, about 1.5 s, standard library only, **no network**: synthetic Blur frames and
+235 tests, about 1.5 s, standard library only, **no network**: synthetic and recorded Blur frames and
 recorded JSON-RPC shapes in `tests/fixtures/solami/`, a scripted WebSocket server on a
 socketpair for the protocol client (`tests/ws_helpers.py`), fake RPC/bot objects for the
 engine and the loop. CI (`.github/workflows/tests.yml`) runs them on Python 3.9, 3.11 and
