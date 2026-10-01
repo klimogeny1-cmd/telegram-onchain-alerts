@@ -9,7 +9,13 @@ mint/freeze-authority changes - each line with a link you can check on Solscan.
 
 Status: verified against live Solana mainnet data on 2026-09-30 - `--check-live`: Solami RPC
 and both Blur streams, over 200 decoded events a minute, no parse errors (see "First live
-run"); 235 offline tests.
+run"); 235 offline tests. Live demo channel: [@solana_tape_demo](https://t.me/solana_tape_demo).
+
+**Trying it with your own key:** a Solami key is all you need. Put it into `.env` as
+`SOLAMI_API_KEY=sk_...` ([Quick start](#quick-start), step 3), then run
+`python3 main.py --check-live` (20 s of live mainnet, posts nothing) or
+`python3 main.py --dry-run --duration 120` (live posts printed in the terminal) - neither
+needs a Telegram bot.
 
 Data comes from **[Solami](https://solami.dev)**: the Blur decoded-event stream is the
 real-time backbone, and Solami RPC answers "what is true right now" about a token. No
@@ -129,12 +135,18 @@ Python 3.9+. Nothing to `pip install` (see [Dependencies](#dependencies)).
    works for RPC and the Data API.
 2. **Get a bot token.** Message [@BotFather](https://t.me/BotFather), `/newbot`, copy the
    token. Make the bot an admin of your channel (it only needs "Post messages").
-3. **Configure.**
+3. **Put your own Solami key into `.env`.** The repository ships without any key.
    ```
    cp .env.example .env
    ```
-   Fill in `BOT_TOKEN`, `CHANNEL_ID`, `SOLAMI_API_KEY`, and - for watchlist mode -
-   `WATCH_MINTS` (your token's mint address). Leave `WATCH_MINTS` empty for the firehose.
+   Open `.env` and fill in:
+   ```
+   SOLAMI_API_KEY=sk_...        # your own key from step 1
+   BOT_TOKEN=123456789:AA...    # from step 2 - not needed for --check-live and --dry-run
+   CHANNEL_ID=@your_channel     # the channel the bot posts to
+   ```
+   For watchlist mode also set `WATCH_MINTS` (your token's mint address); leave it empty
+   for the firehose.
 4. **Check the config** (no network at all):
    ```
    python3 main.py --check
