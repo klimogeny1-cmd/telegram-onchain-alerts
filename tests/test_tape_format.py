@@ -100,6 +100,27 @@ class PostTests(unittest.TestCase):
             self.assertTrue(post.endswith(FOOTER))
         self.assertLess(MAX_POST_CHARS, 4096)
 
+    def test_a_split_never_leaves_a_title_or_a_facts_line_apart_from_its_item(self):
+        graduations = ["<b>Graduations</b>"]
+        for n in range(12):
+            graduations += ["• TOKEN%d graduated from pumpfun to a pumpswap pool (%s)" % (n, "x" * 40),
+                            "  mint authority: none · freeze authority: none · top-10 accounts 50.0% of supply"]
+        graduations.append("+ 3 more not shown")
+        blocks = [["<b>Large trades</b>"] + ["• trade %d %s" % (n, "y" * 90) for n in range(6)], graduations,
+                  ["<b>Volume breakouts</b>", "• SURGE: 5-min volume %s" % ("z" * 80), "  mint authority: none"]]
+        lines = [line for block in blocks for line in block]
+        for max_chars in range(700, 2600, 37):
+            posts = assemble("<b>Solana Tape</b> · 14:20 UTC", blocks, [FOOTER], max_chars=max_chars)
+            self.assertGreater(len(posts), 1)
+            shown = []
+            for number, post in enumerate(posts):
+                self.assertLessEqual(len(post), max_chars)
+                body = post.split("\n")[2:-2]                    # header, blank ... blank, footer
+                self.assertFalse(body[-1].startswith("<b>"), "a title ends post %d at %d" % (number, max_chars))
+                self.assertFalse(body[0].startswith(("  ", "+ ")), "post %d starts mid-item" % number)
+                shown += [line for line in body if line]
+            self.assertEqual(shown, lines)                       # nothing lost, nothing reordered
+
 
 if __name__ == "__main__":
     unittest.main()

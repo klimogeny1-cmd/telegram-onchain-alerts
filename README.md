@@ -9,7 +9,7 @@ mint/freeze-authority changes - each line with a link you can check on Solscan.
 
 Status: verified against live Solana mainnet data on 2026-09-30 - `--check-live`: Solami RPC
 and both Blur streams, over 200 decoded events a minute, no parse errors (see "First live
-run"); 235 offline tests. Live demo channel: [@solana_tape_demo](https://t.me/solana_tape_demo).
+run"); 238 offline tests. Live demo channel: [@solana_tape_demo](https://t.me/solana_tape_demo).
 
 **Trying it with your own key:** a Solami key is all you need. Put it into `.env` as
 `SOLAMI_API_KEY=sk_...` ([Quick start](#quick-start), step 3), then run
@@ -395,7 +395,7 @@ docker run -d --name solana-tape \
 python3 -m unittest discover -v
 ```
 
-235 tests, about 1.5 s, standard library only, **no network**: synthetic and recorded Blur frames and
+238 tests, about 1.5 s, standard library only, **no network**: synthetic and recorded Blur frames and
 recorded JSON-RPC shapes in `tests/fixtures/solami/`, a scripted WebSocket server on a
 socketpair for the protocol client (`tests/ws_helpers.py`), fake RPC/bot objects for the
 engine and the loop. CI (`.github/workflows/tests.yml`) runs them on Python 3.9, 3.11 and

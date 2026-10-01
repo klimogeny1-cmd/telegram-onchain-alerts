@@ -170,6 +170,38 @@ class FirehoseRuleTests(EngineCase):
         text = engine.flush(self.clock())[0].text
         self.assertIn("authorities: not checked this round", text)
 
+    @staticmethod
+    def graduations(count):
+        return [parse_blur_event({"type": "graduation", "signature": "SigGrad%d" % n, "slot": 370000100 + n,
+                                  "block_time": 1790000100 + n, "mint": "Grad%040d" % n, "launchpad": "pumpfun",
+                                  "dex": "pumpswap", "pool": "Pool%040d" % n}) for n in range(count)]
+
+    def test_the_busiest_window_of_the_first_live_night_is_checked_in_full(self):
+        events = self.graduations(10)               # 20 lookups: the old budget of 12 checked six of them
+        rpc = FakeRPC(infos={e.mint: demo_mint_info() for e in events})
+        engine = self.make(fire_settings(max_items_per_section=10), rpc=rpc)
+        self.feed(engine, events)
+        text = "\n".join(p.text for p in engine.flush(self.clock()))
+        self.assertEqual(text.count("mint authority: none · freeze authority: none"), 10)
+        self.assertNotIn("not checked this round", text)
+
+    def test_rpc_lookups_stop_after_the_time_budget_when_rpc_is_slow(self):
+        events = self.graduations(10)
+        clock_holder = {}
+
+        class SlowRPC(FakeRPC):
+            def get_mint_info(self, mint):
+                clock_holder["clock"].advance(seconds=8)
+                return FakeRPC.get_mint_info(self, mint)
+
+        rpc = SlowRPC(infos={e.mint: demo_mint_info() for e in events})
+        engine = self.make(fire_settings(max_items_per_section=10), rpc=rpc)
+        clock_holder["clock"] = self.clock
+        self.feed(engine, events)
+        text = "\n".join(p.text for p in engine.flush(self.clock()))
+        self.assertEqual(len([c for c in rpc.calls if c[0] == "getAccountInfo"]), 3)   # at 0, 8 and 16 s
+        self.assertEqual(text.count("authorities: not checked this round (RPC budget)"), 7)
+
     def test_digest_counts_launches_pools_graduations(self):
         engine = self.make(fire_settings(), store=False)
         engine.startup()

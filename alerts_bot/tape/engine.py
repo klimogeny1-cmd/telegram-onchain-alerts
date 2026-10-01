@@ -65,7 +65,8 @@ class TapeSettings:
     authority_recheck_sec: int = 1800
     summary_every_sec: int = 3600
     digest_every_sec: int = 900
-    rpc_lookups_per_flush: int = 12
+    rpc_lookups_per_flush: int = 30            # the busiest window of the first live night needed 28
+    rpc_seconds_per_flush: float = 20.0        # and lookups stop sooner if RPC is slow
     symbol_lookups_per_flush: int = 5
     item_max_age_sec: int = 900
     max_pending: int = 2000
@@ -577,16 +578,23 @@ class TapeEngine:
 
     def _enrich(self, items):
         """RPC facts for items that need them (graduations, firehose breakouts, launches),
-        within a per-flush budget; then symbols from the Data API for mints the stream
-        has not named yet. Items beyond a budget are posted without the extra fact."""
+        within a per-flush budget of lookups and seconds, in the order the post shows them;
+        then symbols from the Data API for mints the stream has not named yet. Items beyond
+        a budget are posted without the extra fact."""
         lookups = 0
-        for item in sorted(items, key=lambda i: i.sort_value, reverse=True):
+        started = self._now()
+
+        def spent():
+            return lookups >= self.s.rpc_lookups_per_flush or \
+                self._now() - started >= timedelta(seconds=self.s.rpc_seconds_per_flush)
+
+        for item in sorted(items, key=lambda i: (i.sort_value, i.created_at), reverse=True):
             if not item.needs_mint_info or self.rpc is None:
                 continue
             mint = item.data.get("mint", "")
             cached = self._mint_info.get(mint)
             fresh = cached is not None and self._now() - cached[1] < MINT_INFO_TTL
-            if not fresh and lookups >= self.s.rpc_lookups_per_flush:
+            if not fresh and spent():
                 item.data["facts"] = "authorities: not checked this round (RPC budget)"
                 continue
             if not fresh:
@@ -597,7 +605,7 @@ class TapeEngine:
                 continue
             facts = ["mint authority: %s" % ("active ⚠️" if info.mint_authority else "none"),
                      "freeze authority: %s" % ("active ⚠️" if info.freeze_authority else "none")]
-            if item.section == "graduations" and lookups < self.s.rpc_lookups_per_flush:
+            if item.section == "graduations" and not spent():
                 lookups += 1
                 share = top10_share_pct(self._top_accounts(mint), info.supply)
                 if share is not None:

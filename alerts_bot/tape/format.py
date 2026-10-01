@@ -223,9 +223,22 @@ def header_line(title, now, subtitle=None):
     return text + (" · " + escape_html(subtitle) if subtitle else "")
 
 
+def _units(block):
+    """A block's lines in pieces a post never breaks inside: an item with its indented
+    facts and flag lines, a "+ N more" line with the item before it, and the section title
+    with the first item, so a title never ends a post on its own."""
+    units = []
+    for line in block:
+        if units and (line.startswith(("  ", "+ ")) or units == [block[:1]]):
+            units[-1].append(line)
+        else:
+            units.append([line])
+    return units
+
+
 def assemble(header, blocks, footer_lines, max_chars=MAX_POST_CHARS):
     """Blocks of lines -> one or more post texts, each with header and footer, each under
-    max_chars. A block is split line by line only if it does not fit whole."""
+    max_chars. A block is split only if it does not fit whole, and then between items."""
     posts, current = [], [header, ""]
     footer = [""] + list(footer_lines)
 
@@ -241,11 +254,12 @@ def assemble(header, blocks, footer_lines, max_chars=MAX_POST_CHARS):
         if size(current + block) <= max_chars:
             current.extend(block + [""])
             continue
-        for line in block:
-            if size(current + [line]) > max_chars and len(current) > 2:
+        for unit in _units(block):
+            unit = [line[:max_chars - 200] for line in unit]
+            if size(current + unit) > max_chars and len(current) > 2:
                 close()
                 current[:] = [header + " (cont.)", ""]
-            current.append(line[:max_chars - 200])
+            current.extend(unit)
         current.append("")
     if len(current) > 2:
         close()

@@ -39,6 +39,11 @@ Solana Tape: the bot now posts a live Solana mainnet tape built on [Solami](http
 
 - `DATA_SOURCE` defaults to `solami`. The original keyless DexScreener tape still works
   unchanged with `DATA_SOURCE=dexscreener`.
+- RPC facts per flush: up to 30 lookups (was 12) and at most 20 s, spent in the order the
+  post shows its items. On the first live night the busiest window needed 28, and about
+  6% of graduations went out as "not checked this round".
+- A long post is split between items, never after a section title or between an item
+  and its facts line.
 
 ## [1.0.0] - 2026-09-24
 
